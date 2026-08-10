@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Home Security System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div id="camera-container">
+        <!-- Слой 1: Текущий кадр камеры -->
+        <img id="room-bg" src="" alt="Room">
+
+        <!-- Слой 2: Интерфейс камеры (сетка, время, надписи) -->
+        <div class="camera-ui">
+            <div class="rec-dot"></div> REC
+            <div id="display-time">00:00:00</div>
+            <div id="room-name">ГОСТИНАЯ</div>
+        </div>
+
+        <!-- Слой 3: невидимая кликабельная зона поверх умной колонки на столе -->
+        <div id="smart-speaker" aria-label="Спросить колонку">
+            <div class="speaker-wave"></div>
+        </div>
+    </div>
+
+    <!-- Панель управления -->
+    <div class="controls">
+        <input type="range" id="time-slider" min="0" max="36000" value="21600">
+    </div>
+
+    <!-- Передаем конфиг из Python в JS -->
+    <script>
+        window.ROOMS_CONFIG = {{ rooms|tojson | safe }};
+    </script>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
