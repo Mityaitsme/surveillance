@@ -104,11 +104,12 @@ ROOMS = {
     "living_room": {
         "id": "living_room",
         "name": "Гостиная",
-        "default_frame": "0.png",
+        "default_frame": "l_0.png",
         "event": {
-            "trigger_time": "04:09:00",
+            # l_0 до 04:09:05 включительно, далее каждые 5 сек l_1 -> l_2 -> l_3
+            "trigger_time": "04:09:10",
             "interval_sec": 5,
-            "frames": ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png"]
+            "frames": ["l_1.png", "l_2.png", "l_3.png"]
         },
         "nav": [
             {"label": "← Кухня", "target": "kitchen"},
@@ -121,21 +122,19 @@ ROOMS = {
         # TODO: заменить заглушку и добавить event, когда будут готовы кадры тени для кухни
         "default_frame": "kitchen_0.png",
         "nav": [
-            {"label": "→ Гостиная", "target": "living_room"},
-            {"label": "↓ Спальня", "target": "bedroom"}
+            {"label": "↓ Спальня", "target": "bedroom"},
+            {"label": "→ Гостиная", "target": "living_room"}
         ]
     },
     "bedroom": {
         "id": "bedroom",
         "name": "Спальня",
-        # TODO: заменить заглушку, когда будет готово реальное фото
-        "default_frame": "bedroom_0.png",
+        "default_frame": "bedroom.png",
         "nav": [
-            {"label": "↑ Гостиная", "target": "living_room"},
-            {"label": "← Кухня", "target": "kitchen"}
+            {"label": "← Кухня", "target": "kitchen"},
+            {"label": "↑ Гостиная", "target": "living_room"}
         ],
-        # Позиция колонки — временная, для теста (правый верхний угол)
-        "speaker": {"left": 88, "top": 14, "size": 12}
+        "speaker": {"left": 76.5, "top": 46.3, "size": 13}
     }
 }
 
