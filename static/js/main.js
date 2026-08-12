@@ -105,6 +105,30 @@ const BUBBLE_HOLD_MS = 2000;
 let bubbleHideTimer = null;
 let bubbleFadeTimer = null;
 
+// Мобильные браузеры разрешают speechSynthesis.speak() только рядом с прямым
+// жестом пользователя. Наш реальный ответ приходит через recognition.onend
+// -> fetch -> speak() — несколько шагов асинхронщины спустя после касания,
+// из-за чего телефон может молча отказываться его озвучивать (при этом
+// субтитры всё равно появляются, т.к. они не зависят от TTS). Поэтому прямо
+// в обработчике касания «прогреваем» движок почти беззвучной репликой —
+// после этого те же браузеры обычно разрешают озвучивать и последующие,
+// асинхронные вызовы speak() в рамках той же сессии.
+let ttsUnlocked = false;
+function unlockSpeech() {
+    if (ttsUnlocked) return;
+    ttsUnlocked = true;
+    const primer = new SpeechSynthesisUtterance(' ');
+    primer.volume = 0.01;
+    window.speechSynthesis.speak(primer);
+}
+
+// getVoices() на телефоне при первом вызове нередко возвращает пустой список —
+// голоса подгружаются асинхронно. Кэшируем через voiceschanged.
+let cachedVoices = [];
+function refreshVoices() { cachedVoices = window.speechSynthesis.getVoices(); }
+window.speechSynthesis.onvoiceschanged = refreshVoices;
+refreshVoices();
+
 function showBubble(text) {
     clearTimeout(bubbleHideTimer);
     clearTimeout(bubbleFadeTimer);
@@ -129,13 +153,17 @@ function scheduleBubbleHide() {
 
 function speak(text) {
     window.speechSynthesis.cancel();
+    window.speechSynthesis.resume(); // Chrome иногда «залипает» в paused-состоянии
     showBubble(text);
     const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
+    const voices = cachedVoices.length ? cachedVoices : window.speechSynthesis.getVoices();
     utterance.voice = voices.find(v => v.lang.includes('ru'));
     utterance.pitch = 0.9;
     utterance.onend = scheduleBubbleHide;
-    utterance.onerror = scheduleBubbleHide;
+    utterance.onerror = (e) => {
+        console.error("[JS ERROR] TTS:", e.error);
+        scheduleBubbleHide();
+    };
     window.speechSynthesis.speak(utterance);
 }
 
@@ -155,6 +183,7 @@ let recognizedText = '';
 
 function startListen(e) {
     if (e) e.preventDefault();
+    unlockSpeech();
     if (isSpeaking) return;
     if (!recognition) {
         speak("Сэр, это устройство не поддерживает голосовое распознавание.");
