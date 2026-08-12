@@ -10,6 +10,12 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: center;
+    /* На iOS долгое нажатие (наш press-to-talk) иначе может быть понято как
+       long-press на картинке — выделение/перетаскивание/меню "Сохранить
+       изображение". -webkit-touch-callout — единственное, что это глушит. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* Обёртка всего контента: JS подгоняет её масштабом под высоту экрана
@@ -29,6 +35,7 @@ body {
     border: 2px solid #333;
     overflow: hidden;
     box-sizing: border-box;
+    touch-action: none;
 }
 
 #room-bg {
@@ -36,6 +43,10 @@ body {
     width: 100%; height: 100%;
     object-fit: cover;
     transition: filter 0.5s;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    pointer-events: none;
 }
 
 .camera-ui {
