@@ -151,20 +151,29 @@ function scheduleBubbleHide() {
     }, BUBBLE_HOLD_MS);
 }
 
+// Субтитры (showBubble) не должны зависеть от того, справится ли сам синтез
+// речи — поэтому показываем их всегда, а TTS оборачиваем в try/catch, чтобы
+// сбой озвучки никогда не улетал наверх и не путался, например, с сетевой
+// ошибкой в вызывающем коде.
 function speak(text) {
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.resume(); // Chrome иногда «залипает» в paused-состоянии
     showBubble(text);
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voices = cachedVoices.length ? cachedVoices : window.speechSynthesis.getVoices();
-    utterance.voice = voices.find(v => v.lang.includes('ru'));
-    utterance.pitch = 0.9;
-    utterance.onend = scheduleBubbleHide;
-    utterance.onerror = (e) => {
-        console.error("[JS ERROR] TTS:", e.error);
+    try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume(); // Chrome иногда «залипает» в paused-состоянии
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voices = cachedVoices.length ? cachedVoices : window.speechSynthesis.getVoices();
+        utterance.voice = voices.find(v => v.lang.includes('ru'));
+        utterance.pitch = 0.9;
+        utterance.onend = scheduleBubbleHide;
+        utterance.onerror = (e) => {
+            console.error("[JS ERROR] TTS:", e.error);
+            scheduleBubbleHide();
+        };
+        window.speechSynthesis.speak(utterance);
+    } catch (err) {
+        console.error("[JS ERROR] speak():", err);
         scheduleBubbleHide();
-    };
-    window.speechSynthesis.speak(utterance);
+    }
 }
 
 // --- КОЛОНКА ---
@@ -242,6 +251,10 @@ if (recognition) recognition.onend = async () => {
 
     console.log("[JS] Отправляю POST запрос на /ask...", text);
 
+    // speak() вызывается один раз, СНАРУЖИ try — иначе сбой в самом синтезе
+    // речи попадёт в тот же catch и ошибочно озвучится как сетевая проблема,
+    // хотя ответ от сервера пришёл нормально.
+    let answer;
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // Таймаут 10 сек
@@ -258,11 +271,12 @@ if (recognition) recognition.onend = async () => {
 
         const data = await res.json();
         console.log("[JS] Тест ответа:", data.answer);
-        speak(data.answer);
+        answer = data.answer;
     } catch (e) {
         console.error("[JS ERROR] Ошибка при запросе:", e);
-        speak("Простите, сэр, помехи в канале связи.");
+        answer = "Простите, сэр, помехи в канале связи.";
     }
+    speak(answer);
 };
 
 if (recognition) recognition.onerror = (event) => {
