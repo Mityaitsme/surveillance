@@ -109,7 +109,33 @@ ROOMS = {
             "trigger_time": "04:09:00",
             "interval_sec": 5,
             "frames": ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png"]
-        }
+        },
+        "nav": [
+            {"label": "← Кухня", "target": "kitchen"},
+            {"label": "↓ Спальня", "target": "bedroom"}
+        ]
+    },
+    "kitchen": {
+        "id": "kitchen",
+        "name": "Кухня",
+        # TODO: заменить заглушку и добавить event, когда будут готовы кадры тени для кухни
+        "default_frame": "kitchen_0.png",
+        "nav": [
+            {"label": "→ Гостиная", "target": "living_room"},
+            {"label": "↓ Спальня", "target": "bedroom"}
+        ]
+    },
+    "bedroom": {
+        "id": "bedroom",
+        "name": "Спальня",
+        # TODO: заменить заглушку, когда будет готово реальное фото
+        "default_frame": "bedroom_0.png",
+        "nav": [
+            {"label": "↑ Гостиная", "target": "living_room"},
+            {"label": "← Кухня", "target": "kitchen"}
+        ],
+        # Позиция колонки — временная, для теста (правый верхний угол)
+        "speaker": {"left": 88, "top": 14, "size": 12}
     }
 }
 

@@ -46,12 +46,39 @@ body { background: #111; color: #0f0; font-family: monospace; overflow-x: hidden
 
 #time-slider { width: 100%; }
 
-/* Колонка: невидимая, но кликабельная зона поверх умной колонки на столе в кадре */
+.controls-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.room-nav {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.room-nav button {
+    background: #1a1a1a;
+    color: #0f0;
+    border: 1px solid #333;
+    font-family: monospace;
+    padding: 6px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.room-nav button:hover { border-color: #0f0; }
+
+#fine-slider { flex: 1; min-width: 0; }
+
+/* Колонка: невидимая, но кликабельная зона поверх умной колонки на столе в кадре.
+   Позиция/размер задаются из JS на основе конфига комнаты. Показывается только
+   в комнатах, где колонка физически есть. */
 #smart-speaker {
+    display: none;
     position: absolute;
-    left: 84%;
-    top: 50%;
-    width: 13%;
     aspect-ratio: 1 / 1;
     transform: translate(-50%, -50%);
     border-radius: 50%;
@@ -59,6 +86,10 @@ body { background: #111; color: #0f0; font-family: monospace; overflow-x: hidden
     z-index: 20;
     background: transparent;
     border: none;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .speaker-wave {
