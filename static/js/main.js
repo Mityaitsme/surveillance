@@ -140,6 +140,19 @@ function speak(text) {
 }
 
 // --- КОЛОНКА ---
+// По умолчанию (continuous=false) распознавание на мобильном Chrome само
+// обрывается почти сразу после первой же паузы в речи — независимо от того,
+// держит ли пользователь кнопку — из-за чего долгое удержание с речью не
+// работало. continuous=true держит сессию активной, пока мы явно не вызовем
+// stop() по отпусканию кнопки; результат отправляется на /ask только когда
+// сессия реально завершилась (onend), а не на каждый промежуточный кусок речи.
+if (recognition) {
+    recognition.continuous = true;
+    recognition.interimResults = false;
+}
+
+let recognizedText = '';
+
 function startListen(e) {
     if (e) e.preventDefault();
     if (isSpeaking) return;
@@ -148,16 +161,26 @@ function startListen(e) {
         return;
     }
     isSpeaking = true;
+    recognizedText = '';
     speakerBtn.classList.add('active');
     window.speechSynthesis.cancel();
-    try { recognition.start(); } catch(err) {}
+    try {
+        recognition.start();
+    } catch (err) {
+        console.error("[JS ERROR] recognition.start():", err);
+        isSpeaking = false;
+        speakerBtn.classList.remove('active');
+        speak("Сэр, не удалось активировать микрофон. Попробуйте ещё раз.");
+    }
 }
 
 function stopListen() {
     if (!isSpeaking) return;
-    isSpeaking = false;
-    speakerBtn.classList.remove('active');
-    setTimeout(() => { recognition.stop(); }, 400);
+    // Состояние (isSpeaking/active) сбрасывается в onend/onerror — там, где
+    // сессия распознавания реально завершилась, а не когда просто отпустили палец.
+    setTimeout(() => {
+        try { recognition.stop(); } catch (err) {}
+    }, 400);
 }
 
 // Pointer Events объединяют мышь/тач/перо в одном API и не страдают от
@@ -171,14 +194,25 @@ speakerBtn.addEventListener('pointerdown', (e) => {
 speakerBtn.addEventListener('pointerup', stopListen);
 speakerBtn.addEventListener('pointercancel', stopListen);
 
-if (recognition) recognition.onresult = async (event) => {
-    const text = event.results[0][0].transcript;
-    console.log("%c[JS] Распознано: " + text, "color: yellow");
-    
+if (recognition) recognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+            recognizedText += event.results[i][0].transcript;
+        }
+    }
+    console.log("%c[JS] Распознано (промежуточно): " + recognizedText, "color: yellow");
+};
+
+if (recognition) recognition.onend = async () => {
+    isSpeaking = false;
+    speakerBtn.classList.remove('active');
+
+    const text = recognizedText.trim();
+    recognizedText = '';
     if (text.length < 2) return;
 
-    console.log("[JS] Отправляю POST запрос на /ask...");
-    
+    console.log("[JS] Отправляю POST запрос на /ask...", text);
+
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // Таймаут 10 сек
@@ -189,14 +223,14 @@ if (recognition) recognition.onresult = async (event) => {
             body: JSON.stringify({message: text}),
             signal: controller.signal
         });
-        
+
         clearTimeout(timeoutId);
         console.log("[JS] Ответ от сервера получен, статус:", res.status);
-        
+
         const data = await res.json();
         console.log("[JS] Тест ответа:", data.answer);
         speak(data.answer);
-    } catch(e) {
+    } catch (e) {
         console.error("[JS ERROR] Ошибка при запросе:", e);
         speak("Простите, сэр, помехи в канале связи.");
     }
@@ -204,9 +238,18 @@ if (recognition) recognition.onresult = async (event) => {
 
 if (recognition) recognition.onerror = (event) => {
     console.error("[JS ERROR] Распознавание речи:", event.error);
-    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        speak("Сэр, нет доступа к микрофону. Проверьте разрешения браузера.");
-    }
+    isSpeaking = false;
+    speakerBtn.classList.remove('active');
+    recognizedText = '';
+
+    const messages = {
+        'not-allowed': "Сэр, нет доступа к микрофону. Проверьте разрешения браузера.",
+        'service-not-allowed': "Сэр, нет доступа к микрофону. Проверьте разрешения браузера.",
+        'no-speech': "Сэр, я не расслышал. Попробуйте ещё раз.",
+        'audio-capture': "Сэр, микрофон не обнаружен.",
+        'network': "Сэр, нет соединения с сервисом распознавания речи."
+    };
+    speak(messages[event.error] || "Сэр, произошла ошибка распознавания речи.");
 };
 
 // --- ЗАПУСК ---
