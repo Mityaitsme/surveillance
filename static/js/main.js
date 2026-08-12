@@ -161,9 +161,19 @@ function speak(text) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.resume(); // Chrome иногда «залипает» в paused-состоянии
         const utterance = new SpeechSynthesisUtterance(text);
-        const voices = cachedVoices.length ? cachedVoices : window.speechSynthesis.getVoices();
-        utterance.voice = voices.find(v => v.lang.includes('ru'));
+        // Явно указываем язык — без этого некоторые движки на Android молча
+        // отказываются озвучивать кириллицу, если не могут определить язык сами.
+        utterance.lang = 'ru-RU';
+        // Свежий список голосов приоритетнее кэша: на части Android-браузеров
+        // объекты голосов из старого снимка становятся невалидными, и speak()
+        // с ними может молча ничего не произнести.
+        const freshVoices = window.speechSynthesis.getVoices();
+        const voices = freshVoices.length ? freshVoices : cachedVoices;
+        const ruVoice = voices.find(v => v.lang.includes('ru'));
+        if (ruVoice) utterance.voice = ruVoice;
+        console.log(`[JS] TTS: голосов доступно ${voices.length}, ru-голос ${ruVoice ? 'найден (' + ruVoice.name + ')' : 'НЕ найден, будет голос по умолчанию'}`);
         utterance.pitch = 0.9;
+        utterance.onstart = () => console.log("[JS] TTS: воспроизведение началось");
         utterance.onend = scheduleBubbleHide;
         utterance.onerror = (e) => {
             console.error("[JS ERROR] TTS:", e.error);
@@ -192,7 +202,6 @@ let recognizedText = '';
 
 function startListen(e) {
     if (e) e.preventDefault();
-    unlockSpeech();
     if (isSpeaking) return;
     if (!recognition) {
         speak("Сэр, это устройство не поддерживает голосовое распознавание.");
@@ -201,7 +210,10 @@ function startListen(e) {
     isSpeaking = true;
     recognizedText = '';
     speakerBtn.classList.add('active');
+    // cancel() ДО unlockSpeech() — иначе он тут же обрывает только что
+    // поставленную в очередь «прогревочную» реплику, и разблокировки не происходит.
     window.speechSynthesis.cancel();
+    unlockSpeech();
     try {
         recognition.start();
     } catch (err) {
