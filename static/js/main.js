@@ -9,6 +9,9 @@ const timeDisplay = document.getElementById('display-time');
 const roomNameDisplay = document.getElementById('room-name');
 const roomNavContainer = document.getElementById('room-nav');
 const speakerBtn = document.getElementById('smart-speaker');
+const stage = document.getElementById('stage');
+const bubble = document.getElementById('speech-bubble');
+const bubbleText = document.getElementById('speech-bubble-text');
 
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 const recognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
@@ -50,6 +53,20 @@ function updateSpeaker(room) {
     }
 }
 
+// --- МАСШТАБИРОВАНИЕ ПОД ЭКРАН ---
+// В портретной ориентации контент просто центрируется по вертикали (flex на body).
+// В альбомной, где высоты экрана телефона не хватает под соотношение 4:3, сцену
+// целиком уменьшаем, чтобы всё помещалось без обрезки и скролла.
+function fitStage() {
+    stage.style.transform = 'scale(1)';
+    const rect = stage.getBoundingClientRect();
+    const scale = Math.min(1, window.innerHeight / rect.height);
+    stage.style.transform = `scale(${scale})`;
+}
+
+window.addEventListener('resize', fitStage);
+window.addEventListener('orientationchange', fitStage);
+
 // --- ВИЗУАЛ ---
 function updateView() {
     const hours = Math.floor(currentTimeSec / 3600);
@@ -83,12 +100,42 @@ function getCurrentFrame(room) {
 }
 
 // --- ГОЛОС ---
+const BUBBLE_MAX_CHARS = 240;
+const BUBBLE_HOLD_MS = 2000;
+let bubbleHideTimer = null;
+let bubbleFadeTimer = null;
+
+function showBubble(text) {
+    clearTimeout(bubbleHideTimer);
+    clearTimeout(bubbleFadeTimer);
+    const truncated = text.length > BUBBLE_MAX_CHARS
+        ? text.slice(0, BUBBLE_MAX_CHARS).trimEnd() + '…'
+        : text;
+    bubbleText.textContent = truncated;
+    bubble.classList.remove('fade-out');
+    bubble.classList.add('visible');
+}
+
+// Держим окошко пару секунд после конца реплики, потом плавно гасим (CSS-transition).
+function scheduleBubbleHide() {
+    clearTimeout(bubbleHideTimer);
+    bubbleHideTimer = setTimeout(() => {
+        bubble.classList.add('fade-out');
+        bubbleFadeTimer = setTimeout(() => {
+            bubble.classList.remove('visible', 'fade-out');
+        }, 800); // должно совпадать с transition в CSS
+    }, BUBBLE_HOLD_MS);
+}
+
 function speak(text) {
     window.speechSynthesis.cancel();
+    showBubble(text);
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
     utterance.voice = voices.find(v => v.lang.includes('ru'));
     utterance.pitch = 0.9;
+    utterance.onend = scheduleBubbleHide;
+    utterance.onerror = scheduleBubbleHide;
     window.speechSynthesis.speak(utterance);
 }
 
@@ -197,3 +244,4 @@ fineSlider.addEventListener('pointerup', () => {
 });
 
 changeRoom(currentRoomId);
+fitStage();

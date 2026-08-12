@@ -7,29 +7,36 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div id="camera-container">
-        <!-- Слой 1: Текущий кадр камеры -->
-        <img id="room-bg" src="" alt="Room">
+    <div id="stage">
+        <div id="camera-container">
+            <!-- Слой 1: Текущий кадр камеры -->
+            <img id="room-bg" src="" alt="Room">
 
-        <!-- Слой 2: Интерфейс камеры (сетка, время, надписи) -->
-        <div class="camera-ui">
-            <div class="rec-dot"></div> REC
-            <div id="display-time">00:00:00</div>
-            <div id="room-name">ГОСТИНАЯ</div>
+            <!-- Слой 2: Интерфейс камеры (сетка, время, надписи) -->
+            <div class="camera-ui">
+                <div class="rec-dot"></div> REC
+                <div id="display-time">00:00:00</div>
+                <div id="room-name">ГОСТИНАЯ</div>
+            </div>
+
+            <!-- Слой 3: невидимая кликабельная зона поверх умной колонки на столе -->
+            <div id="smart-speaker" aria-label="Спросить колонку">
+                <div class="speaker-wave"></div>
+            </div>
+
+            <!-- Слой 4: реплика колонки в виде комиксного облачка -->
+            <div id="speech-bubble">
+                <div id="speech-bubble-text"></div>
+            </div>
         </div>
 
-        <!-- Слой 3: невидимая кликабельная зона поверх умной колонки на столе -->
-        <div id="smart-speaker" aria-label="Спросить колонку">
-            <div class="speaker-wave"></div>
-        </div>
-    </div>
-
-    <!-- Панель управления -->
-    <div class="controls">
-        <input type="range" id="time-slider" min="0" max="36000" value="21600">
-        <div class="controls-row">
-            <div class="room-nav" id="room-nav"></div>
-            <input type="range" id="fine-slider" min="-600" max="600" value="0" step="1">
+        <!-- Панель управления -->
+        <div class="controls">
+            <input type="range" id="time-slider" min="0" max="36000" value="21600">
+            <div class="controls-row">
+                <div class="room-nav" id="room-nav"></div>
+                <input type="range" id="fine-slider" min="-600" max="600" value="0" step="1">
+            </div>
         </div>
     </div>
 
