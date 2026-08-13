@@ -149,7 +149,7 @@ body {
     pointer-events: none;
     overflow: hidden;
     word-wrap: break-word;
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transition: opacity 1.1s ease-out, transform 1.1s ease-out;
 }
 
 #speech-bubble.visible {
@@ -181,14 +181,13 @@ body {
     border-color: #fbfbf8 transparent transparent transparent;
 }
 
-/* Переключатель озвучки: голый эмодзи без фона, всегда в правом верхнем
-   углу экрана. position: fixed — вне #stage, чтобы масштабирование сцены
-   в альбомной ориентации не влияло на его размер/позицию. */
+/* Переключатель озвучки: голый эмодзи без фона, в правом верхнем углу
+   именно картинки камеры (а не всей страницы). */
 #voice-toggle {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 9999;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 40;
     background: none;
     border: none;
     padding: 4px;

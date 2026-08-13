@@ -101,7 +101,8 @@ function getCurrentFrame(room) {
 
 // --- ГОЛОС ---
 const BUBBLE_MAX_CHARS = 240;
-const BUBBLE_HOLD_MS = 2000;
+const BUBBLE_HOLD_MS = 1400;
+const BUBBLE_FADE_MS = 1100; // должно совпадать с transition в CSS
 let bubbleHideTimer = null;
 let bubbleFadeTimer = null;
 
@@ -112,6 +113,8 @@ function refreshVoices() { cachedVoices = window.speechSynthesis.getVoices(); }
 window.speechSynthesis.onvoiceschanged = refreshVoices;
 refreshVoices();
 
+// Субтитры живут по своему таймеру независимо от звука — исчезают через
+// пару секунд сами по себе, и включение/выключение озвучки их не трогает.
 function showBubble(text) {
     clearTimeout(bubbleHideTimer);
     clearTimeout(bubbleFadeTimer);
@@ -121,53 +124,22 @@ function showBubble(text) {
     bubbleText.textContent = truncated;
     bubble.classList.remove('fade-out');
     bubble.classList.add('visible');
-}
 
-// Держим окошко пару секунд после конца реплики, потом плавно гасим (CSS-transition).
-function scheduleBubbleHide() {
-    clearTimeout(bubbleHideTimer);
     bubbleHideTimer = setTimeout(() => {
         bubble.classList.add('fade-out');
         bubbleFadeTimer = setTimeout(() => {
             bubble.classList.remove('visible', 'fade-out');
-        }, 800); // должно совпадать с transition в CSS
+        }, BUBBLE_FADE_MS);
     }, BUBBLE_HOLD_MS);
 }
 
-// --- ПЕРЕКЛЮЧАТЕЛЬ ОЗВУЧКИ ---
-// По умолчанию выключена на любом устройстве. Пока выключена, speak() ниже
-// только показывает субтитры и не издаёт звука. Включение — это прямой клик
-// пользователя, а не отложенный вызов после распознавания/сети, поэтому
-// именно им (а не «прогревочной» тишиной) надёжно разблокируется синтез речи
-// даже на iOS: см. предыдущий эксперимент с кликабельным облачком.
-let voiceEnabled = false;
-const voiceToggleBtn = document.getElementById('voice-toggle');
-
-function setVoiceEnabled(enabled) {
-    voiceEnabled = enabled;
-    voiceToggleBtn.textContent = enabled ? '🔊' : '🔇';
-    if (!enabled) window.speechSynthesis.cancel();
-}
-
-voiceToggleBtn.addEventListener('click', () => {
-    if (voiceEnabled) {
-        setVoiceEnabled(false);
-        return;
-    }
-    setVoiceEnabled(true);
-    speak(lastAnswer || 'Звук включён, сэр.');
-});
-
-// Субтитры (showBubble) не должны зависеть от того, справится ли сам синтез
-// речи — поэтому показываем их всегда, а TTS оборачиваем в try/catch, чтобы
-// сбой озвучки никогда не улетал наверх и не путался, например, с сетевой
-// ошибкой в вызывающем коде.
+// Последний ответ колонки — хранится, чтобы при включении звука можно было
+// озвучить его без повторного показа субтитров (они уже отыграли своё).
 let lastAnswer = '';
 
-function speak(text) {
-    lastAnswer = text;
-    showBubble(text);
-    if (!voiceEnabled) return;
+// Собственно звук, отдельно от субтитров: используется и в speak() (когда
+// озвучка включена), и напрямую при клике по переключателю ниже.
+function playVoice(text) {
     try {
         window.speechSynthesis.cancel();
         window.speechSynthesis.resume(); // Chrome иногда «залипает» в paused-состоянии
@@ -183,17 +155,43 @@ function speak(text) {
         const ruVoice = voices.find(v => v.lang.includes('ru'));
         if (ruVoice) utterance.voice = ruVoice;
         utterance.pitch = 0.9;
-        utterance.onend = scheduleBubbleHide;
-        utterance.onerror = (e) => {
-            console.error("[JS ERROR] TTS:", e.error);
-            scheduleBubbleHide();
-        };
+        utterance.onerror = (e) => console.error("[JS ERROR] TTS:", e.error);
         window.speechSynthesis.speak(utterance);
     } catch (err) {
-        console.error("[JS ERROR] speak():", err);
-        scheduleBubbleHide();
+        console.error("[JS ERROR] playVoice():", err);
     }
 }
+
+// Субтитры показываются всегда; звук — только если озвучка включена.
+function speak(text) {
+    lastAnswer = text;
+    showBubble(text);
+    if (voiceEnabled) playVoice(text);
+}
+
+// --- ПЕРЕКЛЮЧАТЕЛЬ ОЗВУЧКИ ---
+// По умолчанию выключена на любом устройстве. Включение — это прямой клик
+// пользователя, а не отложенный вызов после распознавания/сети, поэтому
+// именно им (а не «прогревочной» тишиной) надёжно разблокируется синтез речи
+// даже на iOS: см. предыдущий эксперимент с кликабельным облачком. Субтитры
+// при этом заново не показываем — они уже отыграли своё.
+let voiceEnabled = false;
+const voiceToggleBtn = document.getElementById('voice-toggle');
+
+function setVoiceEnabled(enabled) {
+    voiceEnabled = enabled;
+    voiceToggleBtn.textContent = enabled ? '🔊' : '🔇';
+    if (!enabled) window.speechSynthesis.cancel();
+}
+
+voiceToggleBtn.addEventListener('click', () => {
+    if (voiceEnabled) {
+        setVoiceEnabled(false);
+        return;
+    }
+    setVoiceEnabled(true);
+    playVoice(lastAnswer || 'Звук включён, сэр.');
+});
 
 // --- КОЛОНКА ---
 // По умолчанию (continuous=false) распознавание на мобильном Chrome само
