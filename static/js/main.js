@@ -101,7 +101,7 @@ function getCurrentFrame(room) {
 
 // --- ГОЛОС ---
 const BUBBLE_MAX_CHARS = 240;
-const BUBBLE_HOLD_MS = 1400;
+const BUBBLE_HOLD_MS = 2000;
 const BUBBLE_FADE_MS = 1100; // должно совпадать с transition в CSS
 let bubbleHideTimer = null;
 let bubbleFadeTimer = null;
@@ -177,10 +177,11 @@ function speak(text) {
 // при этом заново не показываем — они уже отыграли своё.
 let voiceEnabled = false;
 const voiceToggleBtn = document.getElementById('voice-toggle');
+const voiceToggleIcon = document.getElementById('voice-toggle-icon');
 
 function setVoiceEnabled(enabled) {
     voiceEnabled = enabled;
-    voiceToggleBtn.textContent = enabled ? '🔊' : '🔇';
+    voiceToggleIcon.src = enabled ? '/static/images/sound.png' : '/static/images/mute.png';
     if (!enabled) window.speechSynthesis.cancel();
 }
 

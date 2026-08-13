@@ -181,7 +181,7 @@ body {
     border-color: #fbfbf8 transparent transparent transparent;
 }
 
-/* Переключатель озвучки: голый эмодзи без фона, в правом верхнем углу
+/* Переключатель озвучки: голая иконка без фона, в правом верхнем углу
    именно картинки камеры (а не всей страницы). */
 #voice-toggle {
     position: absolute;
@@ -191,8 +191,13 @@ body {
     background: none;
     border: none;
     padding: 4px;
-    font-size: 1.6rem;
     line-height: 1;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+}
+
+#voice-toggle-icon {
+    display: block;
+    width: 1.6rem;
+    height: 1.6rem;
 }
