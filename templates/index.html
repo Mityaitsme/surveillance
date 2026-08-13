@@ -40,6 +40,13 @@
         </div>
     </div>
 
+    <!-- Временная отладочная панель: дублирует консоль прямо на экране,
+         чтобы можно было сфотографировать логи без подключения к компьютеру. -->
+    <div id="debug-panel">
+        <div id="debug-log"></div>
+        <button type="button" id="debug-clear">очистить лог</button>
+    </div>
+
     <!-- Передаем конфиг из Python в JS -->
     <script>
         window.ROOMS_CONFIG = {{ rooms|tojson | safe }};

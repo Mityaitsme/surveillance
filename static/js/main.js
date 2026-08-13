@@ -17,6 +17,27 @@ const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRec
 const recognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
 if (recognition) recognition.lang = 'ru-RU';
 
+// --- ОТЛАДОЧНАЯ ПАНЕЛЬ НА ЭКРАНЕ ---
+// Дублирует console.log/console.error прямо на страницу — на iPhone без Mac
+// иначе консоль не увидеть. Временная штука для диагностики TTS/распознавания.
+const debugLogEl = document.getElementById('debug-log');
+function dbg(msg) {
+    console.log(msg);
+    const line = document.createElement('div');
+    line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+    debugLogEl.appendChild(line);
+    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+}
+function dbgErr(msg) {
+    console.error(msg);
+    const line = document.createElement('div');
+    line.className = 'err';
+    line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+    debugLogEl.appendChild(line);
+    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+}
+document.getElementById('debug-clear').onclick = () => { debugLogEl.innerHTML = ''; };
+
 // --- НАВИГАЦИЯ ---
 function changeRoom(id) {
     if (!window.ROOMS_CONFIG || !window.ROOMS_CONFIG[id]) return;
@@ -171,17 +192,18 @@ function speak(text) {
         const voices = freshVoices.length ? freshVoices : cachedVoices;
         const ruVoice = voices.find(v => v.lang.includes('ru'));
         if (ruVoice) utterance.voice = ruVoice;
-        console.log(`[JS] TTS: голосов доступно ${voices.length}, ru-голос ${ruVoice ? 'найден (' + ruVoice.name + ')' : 'НЕ найден, будет голос по умолчанию'}`);
+        dbg(`TTS: голосов доступно ${voices.length}, ru-голос ${ruVoice ? 'найден (' + ruVoice.name + ')' : 'НЕ найден, будет голос по умолчанию'}`);
         utterance.pitch = 0.9;
-        utterance.onstart = () => console.log("[JS] TTS: воспроизведение началось");
-        utterance.onend = scheduleBubbleHide;
+        utterance.onstart = () => dbg("TTS: воспроизведение началось (onstart)");
+        utterance.onend = () => { dbg("TTS: воспроизведение закончилось (onend)"); scheduleBubbleHide(); };
         utterance.onerror = (e) => {
-            console.error("[JS ERROR] TTS:", e.error);
+            dbgErr("TTS onerror: " + e.error);
             scheduleBubbleHide();
         };
+        dbg(`TTS: вызываю speak(), текст: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
         window.speechSynthesis.speak(utterance);
     } catch (err) {
-        console.error("[JS ERROR] speak():", err);
+        dbgErr("speak() бросил исключение: " + err);
         scheduleBubbleHide();
     }
 }
@@ -202,6 +224,7 @@ let recognizedText = '';
 
 function startListen(e) {
     if (e) e.preventDefault();
+    dbg("── нажатие на колонку ──");
     if (isSpeaking) return;
     if (!recognition) {
         speak("Сэр, это устройство не поддерживает голосовое распознавание.");
@@ -216,8 +239,9 @@ function startListen(e) {
     unlockSpeech();
     try {
         recognition.start();
+        dbg("recognition.start() вызван успешно");
     } catch (err) {
-        console.error("[JS ERROR] recognition.start():", err);
+        dbgErr("recognition.start() бросил исключение: " + err);
         isSpeaking = false;
         speakerBtn.classList.remove('active');
         speak("Сэр, не удалось активировать микрофон. Попробуйте ещё раз.");
@@ -226,10 +250,11 @@ function startListen(e) {
 
 function stopListen() {
     if (!isSpeaking) return;
+    dbg("── отпускание колонки ──");
     // Состояние (isSpeaking/active) сбрасывается в onend/onerror — там, где
     // сессия распознавания реально завершилась, а не когда просто отпустили палец.
     setTimeout(() => {
-        try { recognition.stop(); } catch (err) {}
+        try { recognition.stop(); } catch (err) { dbgErr("recognition.stop() бросил исключение: " + err); }
     }, 400);
 }
 
@@ -250,18 +275,22 @@ if (recognition) recognition.onresult = (event) => {
             recognizedText += event.results[i][0].transcript;
         }
     }
-    console.log("%c[JS] Распознано (промежуточно): " + recognizedText, "color: yellow");
+    dbg("Распознано (промежуточно): " + recognizedText);
 };
 
 if (recognition) recognition.onend = async () => {
+    dbg("recognition.onend — сессия распознавания завершена");
     isSpeaking = false;
     speakerBtn.classList.remove('active');
 
     const text = recognizedText.trim();
     recognizedText = '';
-    if (text.length < 2) return;
+    if (text.length < 2) {
+        dbg("Распознанный текст пуст — запрос на /ask не отправляю");
+        return;
+    }
 
-    console.log("[JS] Отправляю POST запрос на /ask...", text);
+    dbg("Отправляю POST /ask: \"" + text + "\"");
 
     // speak() вызывается один раз, СНАРУЖИ try — иначе сбой в самом синтезе
     // речи попадёт в тот же catch и ошибочно озвучится как сетевая проблема,
@@ -279,20 +308,20 @@ if (recognition) recognition.onend = async () => {
         });
 
         clearTimeout(timeoutId);
-        console.log("[JS] Ответ от сервера получен, статус:", res.status);
+        dbg("Ответ от сервера получен, статус: " + res.status);
 
         const data = await res.json();
-        console.log("[JS] Тест ответа:", data.answer);
+        dbg("Ответ сервера: \"" + data.answer + "\"");
         answer = data.answer;
     } catch (e) {
-        console.error("[JS ERROR] Ошибка при запросе:", e);
+        dbgErr("Ошибка при запросе к /ask: " + e);
         answer = "Простите, сэр, помехи в канале связи.";
     }
     speak(answer);
 };
 
 if (recognition) recognition.onerror = (event) => {
-    console.error("[JS ERROR] Распознавание речи:", event.error);
+    dbgErr("recognition.onerror: " + event.error);
     isSpeaking = false;
     speakerBtn.classList.remove('active');
     recognizedText = '';
