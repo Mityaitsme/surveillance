@@ -176,7 +176,21 @@ function scheduleBubbleHide() {
 // речи — поэтому показываем их всегда, а TTS оборачиваем в try/catch, чтобы
 // сбой озвучки никогда не улетал наверх и не путался, например, с сетевой
 // ошибкой в вызывающем коде.
+let lastAnswer = '';
+
+// iOS Safari нередко молча отказывается озвучивать speak(), вызванный не
+// напрямую из жеста пользователя (у нас — после recognition -> fetch, то
+// есть асинхронно). Тап по облачку — прямой клик, такой вызов iOS обычно
+// пропускает без проблем.
+bubble.addEventListener('click', () => {
+    if (lastAnswer) {
+        dbg("Повтор по тапу на облачко");
+        speak(lastAnswer);
+    }
+});
+
 function speak(text) {
+    lastAnswer = text;
     showBubble(text);
     try {
         window.speechSynthesis.cancel();

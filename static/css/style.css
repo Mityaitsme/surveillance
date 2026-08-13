@@ -155,9 +155,17 @@ body {
 #speech-bubble.visible {
     opacity: 1;
     transform: translate(-50%, 0);
+    pointer-events: auto;
+    cursor: pointer;
 }
 
 #speech-bubble.fade-out { opacity: 0; }
+
+#speech-bubble-hint {
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: #8a8a86;
+}
 
 #speech-bubble::before {
     content: "";
