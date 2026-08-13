@@ -17,27 +17,6 @@ const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRec
 const recognition = SpeechRecognitionCtor ? new SpeechRecognitionCtor() : null;
 if (recognition) recognition.lang = 'ru-RU';
 
-// --- ОТЛАДОЧНАЯ ПАНЕЛЬ НА ЭКРАНЕ ---
-// Дублирует console.log/console.error прямо на страницу — на iPhone без Mac
-// иначе консоль не увидеть. Временная штука для диагностики TTS/распознавания.
-const debugLogEl = document.getElementById('debug-log');
-function dbg(msg) {
-    console.log(msg);
-    const line = document.createElement('div');
-    line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
-    debugLogEl.appendChild(line);
-    debugLogEl.scrollTop = debugLogEl.scrollHeight;
-}
-function dbgErr(msg) {
-    console.error(msg);
-    const line = document.createElement('div');
-    line.className = 'err';
-    line.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
-    debugLogEl.appendChild(line);
-    debugLogEl.scrollTop = debugLogEl.scrollHeight;
-}
-document.getElementById('debug-clear').onclick = () => { debugLogEl.innerHTML = ''; };
-
 // --- НАВИГАЦИЯ ---
 function changeRoom(id) {
     if (!window.ROOMS_CONFIG || !window.ROOMS_CONFIG[id]) return;
@@ -126,23 +105,6 @@ const BUBBLE_HOLD_MS = 2000;
 let bubbleHideTimer = null;
 let bubbleFadeTimer = null;
 
-// Мобильные браузеры разрешают speechSynthesis.speak() только рядом с прямым
-// жестом пользователя. Наш реальный ответ приходит через recognition.onend
-// -> fetch -> speak() — несколько шагов асинхронщины спустя после касания,
-// из-за чего телефон может молча отказываться его озвучивать (при этом
-// субтитры всё равно появляются, т.к. они не зависят от TTS). Поэтому прямо
-// в обработчике касания «прогреваем» движок почти беззвучной репликой —
-// после этого те же браузеры обычно разрешают озвучивать и последующие,
-// асинхронные вызовы speak() в рамках той же сессии.
-let ttsUnlocked = false;
-function unlockSpeech() {
-    if (ttsUnlocked) return;
-    ttsUnlocked = true;
-    const primer = new SpeechSynthesisUtterance(' ');
-    primer.volume = 0.01;
-    window.speechSynthesis.speak(primer);
-}
-
 // getVoices() на телефоне при первом вызове нередко возвращает пустой список —
 // голоса подгружаются асинхронно. Кэшируем через voiceschanged.
 let cachedVoices = [];
@@ -172,26 +134,40 @@ function scheduleBubbleHide() {
     }, BUBBLE_HOLD_MS);
 }
 
+// --- ПЕРЕКЛЮЧАТЕЛЬ ОЗВУЧКИ ---
+// По умолчанию выключена на любом устройстве. Пока выключена, speak() ниже
+// только показывает субтитры и не издаёт звука. Включение — это прямой клик
+// пользователя, а не отложенный вызов после распознавания/сети, поэтому
+// именно им (а не «прогревочной» тишиной) надёжно разблокируется синтез речи
+// даже на iOS: см. предыдущий эксперимент с кликабельным облачком.
+let voiceEnabled = false;
+const voiceToggleBtn = document.getElementById('voice-toggle');
+
+function setVoiceEnabled(enabled) {
+    voiceEnabled = enabled;
+    voiceToggleBtn.textContent = enabled ? '🔊' : '🔇';
+    if (!enabled) window.speechSynthesis.cancel();
+}
+
+voiceToggleBtn.addEventListener('click', () => {
+    if (voiceEnabled) {
+        setVoiceEnabled(false);
+        return;
+    }
+    setVoiceEnabled(true);
+    speak(lastAnswer || 'Звук включён, сэр.');
+});
+
 // Субтитры (showBubble) не должны зависеть от того, справится ли сам синтез
 // речи — поэтому показываем их всегда, а TTS оборачиваем в try/catch, чтобы
 // сбой озвучки никогда не улетал наверх и не путался, например, с сетевой
 // ошибкой в вызывающем коде.
 let lastAnswer = '';
 
-// iOS Safari нередко молча отказывается озвучивать speak(), вызванный не
-// напрямую из жеста пользователя (у нас — после recognition -> fetch, то
-// есть асинхронно). Тап по облачку — прямой клик, такой вызов iOS обычно
-// пропускает без проблем.
-bubble.addEventListener('click', () => {
-    if (lastAnswer) {
-        dbg("Повтор по тапу на облачко");
-        speak(lastAnswer);
-    }
-});
-
 function speak(text) {
     lastAnswer = text;
     showBubble(text);
+    if (!voiceEnabled) return;
     try {
         window.speechSynthesis.cancel();
         window.speechSynthesis.resume(); // Chrome иногда «залипает» в paused-состоянии
@@ -206,18 +182,15 @@ function speak(text) {
         const voices = freshVoices.length ? freshVoices : cachedVoices;
         const ruVoice = voices.find(v => v.lang.includes('ru'));
         if (ruVoice) utterance.voice = ruVoice;
-        dbg(`TTS: голосов доступно ${voices.length}, ru-голос ${ruVoice ? 'найден (' + ruVoice.name + ')' : 'НЕ найден, будет голос по умолчанию'}`);
         utterance.pitch = 0.9;
-        utterance.onstart = () => dbg("TTS: воспроизведение началось (onstart)");
-        utterance.onend = () => { dbg("TTS: воспроизведение закончилось (onend)"); scheduleBubbleHide(); };
+        utterance.onend = scheduleBubbleHide;
         utterance.onerror = (e) => {
-            dbgErr("TTS onerror: " + e.error);
+            console.error("[JS ERROR] TTS:", e.error);
             scheduleBubbleHide();
         };
-        dbg(`TTS: вызываю speak(), текст: "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
         window.speechSynthesis.speak(utterance);
     } catch (err) {
-        dbgErr("speak() бросил исключение: " + err);
+        console.error("[JS ERROR] speak():", err);
         scheduleBubbleHide();
     }
 }
@@ -238,7 +211,6 @@ let recognizedText = '';
 
 function startListen(e) {
     if (e) e.preventDefault();
-    dbg("── нажатие на колонку ──");
     if (isSpeaking) return;
     if (!recognition) {
         speak("Сэр, это устройство не поддерживает голосовое распознавание.");
@@ -247,15 +219,11 @@ function startListen(e) {
     isSpeaking = true;
     recognizedText = '';
     speakerBtn.classList.add('active');
-    // cancel() ДО unlockSpeech() — иначе он тут же обрывает только что
-    // поставленную в очередь «прогревочную» реплику, и разблокировки не происходит.
     window.speechSynthesis.cancel();
-    unlockSpeech();
     try {
         recognition.start();
-        dbg("recognition.start() вызван успешно");
     } catch (err) {
-        dbgErr("recognition.start() бросил исключение: " + err);
+        console.error("[JS ERROR] recognition.start():", err);
         isSpeaking = false;
         speakerBtn.classList.remove('active');
         speak("Сэр, не удалось активировать микрофон. Попробуйте ещё раз.");
@@ -264,11 +232,10 @@ function startListen(e) {
 
 function stopListen() {
     if (!isSpeaking) return;
-    dbg("── отпускание колонки ──");
     // Состояние (isSpeaking/active) сбрасывается в onend/onerror — там, где
     // сессия распознавания реально завершилась, а не когда просто отпустили палец.
     setTimeout(() => {
-        try { recognition.stop(); } catch (err) { dbgErr("recognition.stop() бросил исключение: " + err); }
+        try { recognition.stop(); } catch (err) {}
     }, 400);
 }
 
@@ -289,22 +256,18 @@ if (recognition) recognition.onresult = (event) => {
             recognizedText += event.results[i][0].transcript;
         }
     }
-    dbg("Распознано (промежуточно): " + recognizedText);
+    console.log("%c[JS] Распознано (промежуточно): " + recognizedText, "color: yellow");
 };
 
 if (recognition) recognition.onend = async () => {
-    dbg("recognition.onend — сессия распознавания завершена");
     isSpeaking = false;
     speakerBtn.classList.remove('active');
 
     const text = recognizedText.trim();
     recognizedText = '';
-    if (text.length < 2) {
-        dbg("Распознанный текст пуст — запрос на /ask не отправляю");
-        return;
-    }
+    if (text.length < 2) return;
 
-    dbg("Отправляю POST /ask: \"" + text + "\"");
+    console.log("[JS] Отправляю POST запрос на /ask...", text);
 
     // speak() вызывается один раз, СНАРУЖИ try — иначе сбой в самом синтезе
     // речи попадёт в тот же catch и ошибочно озвучится как сетевая проблема,
@@ -322,20 +285,20 @@ if (recognition) recognition.onend = async () => {
         });
 
         clearTimeout(timeoutId);
-        dbg("Ответ от сервера получен, статус: " + res.status);
+        console.log("[JS] Ответ от сервера получен, статус:", res.status);
 
         const data = await res.json();
-        dbg("Ответ сервера: \"" + data.answer + "\"");
+        console.log("[JS] Тест ответа:", data.answer);
         answer = data.answer;
     } catch (e) {
-        dbgErr("Ошибка при запросе к /ask: " + e);
+        console.error("[JS ERROR] Ошибка при запросе:", e);
         answer = "Простите, сэр, помехи в канале связи.";
     }
     speak(answer);
 };
 
 if (recognition) recognition.onerror = (event) => {
-    dbgErr("recognition.onerror: " + event.error);
+    console.error("[JS ERROR] Распознавание речи:", event.error);
     isSpeaking = false;
     speakerBtn.classList.remove('active');
     recognizedText = '';
