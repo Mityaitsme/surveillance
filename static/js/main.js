@@ -79,12 +79,16 @@ function updateView() {
     roomBg.src = `/static/images/${getCurrentFrame(room)}`;
 
     // Ночью запись темнее, к утру постепенно светлеет (шаг на границе 6:00/21:00).
-    let brightness = (hours < 6 || hours > 21) ? 72 : 130;
+    // Оба значения подняты на одинаковую величину — разница между днём и ночью не меняется.
+    let brightness = (hours < 6 || hours > 21) ? 87 : 145;
     roomBg.style.filter = `brightness(${brightness}%)`;
 }
 
 // До наступления события — кадр по умолчанию. С момента события каждые
-// interval_sec секунд показывается следующий кадр, последний остаётся до конца.
+// interval_sec секунд показывается следующий кадр. После последнего кадра
+// либо остаётся на нём (по умолчанию, как в гостиной), либо, если у события
+// стоит revert_to_default, возвращается к дефолтному кадру и висит на нём
+// до конца (как на кухне: тень прошла и на этом всё).
 function getCurrentFrame(room) {
     if (!room.event) return room.default_frame;
 
@@ -95,8 +99,12 @@ function getCurrentFrame(room) {
     if (diff < 0) return room.default_frame;
 
     const frames = room.event.frames;
-    const index = Math.min(Math.floor(diff / room.event.interval_sec), frames.length - 1);
-    return frames[index];
+    const rawIndex = Math.floor(diff / room.event.interval_sec);
+
+    if (rawIndex >= frames.length) {
+        return room.event.revert_to_default ? room.default_frame : frames[frames.length - 1];
+    }
+    return frames[rawIndex];
 }
 
 // --- ГОЛОС ---

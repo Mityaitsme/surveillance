@@ -119,8 +119,15 @@ ROOMS = {
     "kitchen": {
         "id": "kitchen",
         "name": "Кухня",
-        # TODO: заменить заглушку и добавить event, когда будут готовы кадры тени для кухни
-        "default_frame": "kitchen_0.png",
+        "default_frame": "k_0.png",
+        "event": {
+            # k_0 до 04:09:04 включительно, далее каждые 5 сек k_1 -> k_2 -> k_3 -> k_4,
+            # а с 04:09:25 — снова k_0 (revert_to_default) и так до конца.
+            "trigger_time": "04:09:05",
+            "interval_sec": 5,
+            "frames": ["k_1.png", "k_2.png", "k_3.png", "k_4.png"],
+            "revert_to_default": True
+        },
         "nav": [
             {"label": "↓ Спальня", "target": "bedroom"},
             {"label": "→ Гостиная", "target": "living_room"}
